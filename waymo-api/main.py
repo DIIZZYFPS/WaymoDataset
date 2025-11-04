@@ -391,7 +391,7 @@ async def get_pre_flagged_data(page: int = 1):
             """
             SELECT 
                 ec.id,
-                f.frame_id,
+                ec.frame_table_id AS frame_id,
                 f.file_name,
                 f.timestamp,
                 ec.edge_case_type,

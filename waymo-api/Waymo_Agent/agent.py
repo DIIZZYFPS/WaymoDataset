@@ -154,7 +154,7 @@ def classify_image(frame_id: int) -> str:
             ec.severity
         FROM frames f
         LEFT JOIN edge_cases ec ON f.id = ec.frame_table_id
-        WHERE f.frame_id = ?
+        WHERE f.id = ?
         LIMIT 1
         """
         
