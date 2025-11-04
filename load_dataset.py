@@ -29,6 +29,55 @@ DEFAULT_THRESHOLDS = {
 }
 
 # ============================================================================
+# SEVERITY NORMALIZATION
+# ============================================================================
+def calculate_normalized_severity(raw_value, threshold, is_negative=False):
+    """
+    Normalize severity to 0-1 scale based on distance from threshold.
+    
+    Args:
+        raw_value: The measured value
+        threshold: Threshold value (edge of "normal" range)
+        is_negative: True if threshold is for negative values (like braking)
+    
+    Returns:
+        Severity score 0.0-1.0 where:
+        - 0.0 = at threshold (barely an edge case)
+        - 1.0 = 3x beyond threshold (extremely severe)
+    
+    Examples:
+        Hard brake at -0.4 with threshold -0.375:
+            severity = (0.4 - 0.375) / (1.125 - 0.375) = 0.033 (very mild)
+        
+        Hard brake at -1.5 with threshold -0.375:
+            severity = (1.5 - 0.375) / (1.125 - 0.375) = 1.0 (extreme)
+    """
+    if is_negative:
+        # For hard braking: more negative = more severe
+        raw_abs = abs(raw_value)
+        threshold_abs = abs(threshold)
+        
+        # If not beyond threshold, shouldn't be flagged (safety check)
+        if raw_abs < threshold_abs:
+            return 0.0
+        
+        # Severity increases as we go beyond threshold
+        # Cap at 3x threshold for normalization (anything beyond = severity 1.0)
+        max_expected = threshold_abs * 3
+        severity = (raw_abs - threshold_abs) / (max_expected - threshold_abs)
+    else:
+        # For lateral/jerk: higher value = more severe
+        if raw_value < threshold:
+            return 0.0
+        
+        # Cap at 3x threshold
+        max_expected = threshold * 3
+        severity = (raw_value - threshold) / (max_expected - threshold)
+    
+    # Clamp to [0, 1]
+    return max(0.0, min(severity, 1.0))
+
+# ============================================================================
 # DATABASE SETUP
 # ============================================================================
 def init_database(db_path):
@@ -61,18 +110,16 @@ def init_database(db_path):
             )
         ''')
         
-        # Edge cases table - stores flagged anomalies (references frames table)
+        # Edge cases table - SIMPLIFIED: just reference frames.id (globally unique!)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS edge_cases (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                frame_id INTEGER,
-                file_name TEXT,
-                timestamp BIGINT,
+                frame_table_id INTEGER NOT NULL,
                 edge_case_type TEXT,
                 severity REAL,
                 reason TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(frame_id) REFERENCES frames(frame_id)
+                FOREIGN KEY(frame_table_id) REFERENCES frames(id)
             )
         ''')
         
@@ -81,6 +128,7 @@ def init_database(db_path):
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_frames_accel_x_min ON frames(accel_x_min)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_frames_accel_y_max ON frames(accel_y_max)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_edge_cases_type ON edge_cases(edge_case_type)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_edge_cases_frame ON edge_cases(frame_table_id)')
         
         conn.commit()
         return conn
@@ -89,7 +137,7 @@ def init_database(db_path):
         raise
 
 def store_frame_data(conn, frame_id, file_name, timestamp, motion_data, intent, panorama_thumbnail_bytes=None):
-    """Store complete motion profile for every frame."""
+    """Store complete motion profile for every frame and return the database row ID."""
     try:
         cursor = conn.cursor()
         
@@ -116,6 +164,10 @@ def store_frame_data(conn, frame_id, file_name, timestamp, motion_data, intent, 
         ))
         
         conn.commit()
+        
+        # Return the auto-increment ID of the inserted row
+        return cursor.lastrowid
+        
     except sqlite3.OperationalError as e:
         print(f"✗ Database write error: {e}")
         try:
@@ -143,22 +195,22 @@ def store_frame_data(conn, frame_id, file_name, timestamp, motion_data, intent, 
                 panorama_thumbnail_bytes
             ))
             conn.commit()
+            return cursor.lastrowid
         except Exception as retry_err:
             print(f"  ✗ Retry failed: {retry_err}")
+            return None
 
-def store_edge_case(conn, frame_id, file_name, timestamp, edge_case_type, severity, reason):
-    """Store flagged edge case to database."""
+def store_edge_case(conn, frame_table_id, edge_case_type, severity, reason):
+    """Store flagged edge case to database using frames.id as foreign key."""
     try:
         cursor = conn.cursor()
         
         cursor.execute('''
             INSERT INTO edge_cases 
-            (frame_id, file_name, timestamp, edge_case_type, severity, reason)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (frame_table_id, edge_case_type, severity, reason)
+            VALUES (?, ?, ?, ?)
         ''', (
-            frame_id,
-            file_name,
-            timestamp,
+            frame_table_id,
             edge_case_type,
             severity,
             reason
@@ -172,12 +224,10 @@ def store_edge_case(conn, frame_id, file_name, timestamp, edge_case_type, severi
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO edge_cases 
-                (frame_id, file_name, timestamp, edge_case_type, severity, reason)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (frame_table_id, edge_case_type, severity, reason)
+                VALUES (?, ?, ?, ?)
             ''', (
-                frame_id,
-                file_name,
-                timestamp,
+                frame_table_id,
                 edge_case_type,
                 severity,
                 reason
@@ -369,7 +419,7 @@ db_conn = init_database(DB_PATH)
 print(f"✓ Database initialized: {DB_PATH}")
 
 # ============================================================================
-# LOAD THRESHOLDS (HYBRID APPROACH)
+# LOAD THRESHOLDS (ADAPTIVE APPROACH)
 # ============================================================================
 print("\n--- Threshold Management ---")
 THRESHOLDS = load_or_calculate_thresholds(filename, force_recalculate=False)
@@ -377,7 +427,8 @@ THRESHOLDS = load_or_calculate_thresholds(filename, force_recalculate=False)
 print(f"\n✓ Active Thresholds:")
 print(f"  Hard brake: {THRESHOLDS['hard_brake']:.4f} m/s²")
 print(f"  Lateral: {THRESHOLDS['lateral']:.4f} m/s²")
-print(f"  Jerk: {THRESHOLDS['jerk']:.4f} m/s³\n")
+print(f"  Jerk: {THRESHOLDS['jerk']:.4f} m/s³")
+print(f"\n  Severity normalization: 0.0 at threshold, 1.0 at 3x threshold\n")
 
 # Reload dataset for processing
 dataset = tf.data.TFRecordDataset(filename, compression_type='')
@@ -475,8 +526,8 @@ for bytes_example in data_iter:
     except Exception as e:
         print(f"  ⚠ Could not create panorama thumbnail: {e}")
     
-    # STORE ALL FRAME DATA (regardless of whether it's an edge case)
-    store_frame_data(
+    # STORE ALL FRAME DATA and get the database row ID
+    frame_table_id = store_frame_data(
         db_conn,
         frame_id=frame_count,
         file_name=os.path.basename(filename),
@@ -486,33 +537,49 @@ for bytes_example in data_iter:
         panorama_thumbnail_bytes=panorama_thumbnail_bytes
     )
     
-    # DETECT AND FLAG EDGE CASES
+    if frame_table_id is None:
+        print(f"  ✗ Failed to store frame data, skipping edge case detection")
+        continue
+    
+    # DETECT AND FLAG EDGE CASES WITH NORMALIZED SEVERITY
     hard_brake = motion_data['accel_x_min'] < THRESHOLDS['hard_brake']
     high_lateral_accel = motion_data['accel_y_max'] > THRESHOLDS['lateral']
     high_jerk = motion_data['jerk_x_max'] > THRESHOLDS['jerk']
     
     if hard_brake:
-        severity = abs(motion_data['accel_x_min'])
+        # Calculate normalized severity (0-1 scale)
+        severity = calculate_normalized_severity(
+            motion_data['accel_x_min'],
+            THRESHOLDS['hard_brake'],
+            is_negative=True
+        )
         reason = f"accel_x={motion_data['accel_x_min']:.3f} < threshold {THRESHOLDS['hard_brake']:.3f}"
-        store_edge_case(db_conn, frame_count, os.path.basename(filename), 
-                       data.frame.timestamp_micros, 'hard_brake', severity, reason)
-        print(f"⚠ HARD BRAKE FLAGGED: {severity:.4f} m/s²")
+        store_edge_case(db_conn, frame_table_id, 'hard_brake', severity, reason)
+        print(f"⚠ HARD BRAKE FLAGGED: severity={severity:.2f} (accel={motion_data['accel_x_min']:.3f} m/s²)")
         edge_case_count += 1
     
     if high_lateral_accel:
-        severity = motion_data['accel_y_max']
+        # Calculate normalized severity (0-1 scale)
+        severity = calculate_normalized_severity(
+            motion_data['accel_y_max'],
+            THRESHOLDS['lateral'],
+            is_negative=False
+        )
         reason = f"accel_y={motion_data['accel_y_max']:.3f} > threshold {THRESHOLDS['lateral']:.3f}"
-        store_edge_case(db_conn, frame_count, os.path.basename(filename), 
-                       data.frame.timestamp_micros, 'evasive_maneuver', severity, reason)
-        print(f"⚠ EVASIVE MANEUVER FLAGGED: {severity:.4f} m/s²")
+        store_edge_case(db_conn, frame_table_id, 'evasive_maneuver', severity, reason)
+        print(f"⚠ EVASIVE MANEUVER FLAGGED: severity={severity:.2f} (accel={motion_data['accel_y_max']:.3f} m/s²)")
         edge_case_count += 1
     
     if high_jerk:
-        severity = motion_data['jerk_x_max']
+        # Calculate normalized severity (0-1 scale)
+        severity = calculate_normalized_severity(
+            motion_data['jerk_x_max'],
+            THRESHOLDS['jerk'],
+            is_negative=False
+        )
         reason = f"jerk_x={motion_data['jerk_x_max']:.3f} > threshold {THRESHOLDS['jerk']:.3f}"
-        store_edge_case(db_conn, frame_count, os.path.basename(filename), 
-                       data.frame.timestamp_micros, 'high_jerk', severity, reason)
-        print(f"⚠ HIGH JERK FLAGGED: {severity:.4f} m/s³")
+        store_edge_case(db_conn, frame_table_id, 'high_jerk', severity, reason)
+        print(f"⚠ HIGH JERK FLAGGED: severity={severity:.2f} (jerk={motion_data['jerk_x_max']:.3f} m/s³)")
         edge_case_count += 1
 
 # ============================================================================
@@ -542,27 +609,36 @@ try:
             print(f"  {edge_type}: {count}")
     else:
         print("  No edge cases flagged")
+    
+    # Verify severity normalization
+    print("\n--- Severity Score Validation ---")
+    cursor.execute('SELECT MIN(severity), MAX(severity), AVG(severity) FROM edge_cases')
+    sev_stats = cursor.fetchone()
+    if sev_stats and sev_stats[0] is not None:
+        print(f"  Min severity: {sev_stats[0]:.4f}")
+        print(f"  Max severity: {sev_stats[1]:.4f}")
+        print(f"  Avg severity: {sev_stats[2]:.4f}")
+        if sev_stats[1] > 1.0:
+            print("  ⚠ WARNING: Severity scores exceed 1.0! Check normalization.")
+        else:
+            print("  ✓ All severity scores properly normalized to 0-1 range")
         
     # Calculate statistics for thresholding
     print("\n--- Motion Statistics (for future recalibration) ---")
     cursor.execute('''
         SELECT 
             MIN(accel_x_min) as min_accel_x,
-            PERCENTILE_CONT(0.05) WITHIN GROUP (ORDER BY accel_x_min) as p05_accel_x,
-            PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY accel_x_min) as p25_accel_x,
             MAX(speed_max) as max_speed,
-            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY accel_y_max) as p95_accel_y,
-            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY jerk_x_max) as p95_jerk_x
+            MAX(accel_y_max) as max_accel_y,
+            MAX(jerk_x_max) as max_jerk_x
         FROM frames
     ''')
     stats = cursor.fetchone()
     if stats:
         print(f"  Min accel X: {stats[0]:.4f} m/s²")
-        print(f"  5th percentile accel X: {stats[1]:.4f} m/s²")
-        print(f"  25th percentile accel X: {stats[2]:.4f} m/s²")
-        print(f"  Max speed: {stats[3]:.4f} m/s")
-        print(f"  95th percentile accel Y: {stats[4]:.4f} m/s²")
-        print(f"  95th percentile jerk X: {stats[5]:.4f} m/s³")
+        print(f"  Max speed: {stats[1]:.4f} m/s ({stats[1] * 3.6:.1f} km/h)")
+        print(f"  Max accel Y: {stats[2]:.4f} m/s²")
+        print(f"  Max jerk X: {stats[3]:.4f} m/s³")
     
 except Exception as e:
     print(f"⚠ Could not retrieve summary: {e}")

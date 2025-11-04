@@ -1,315 +1,645 @@
-# 🚗 Waymo Edge Case Detection System
+# 🚗 Waymo Edge Case Analysis System
 
-A comprehensive system for detecting, classifying, and analyzing edge cases in autonomous driving data from the Waymo Open Dataset.
+An intelligent system for detecting, classifying, and analyzing edge cases in autonomous driving data from the Waymo Open Dataset. Features an interactive React dashboard and AI-powered analysis using Google Gemini.
 
 ## 📋 Table of Contents
 
 - [Overview](#overview)
+- [Architecture](#architecture)
 - [Features](#features)
 - [Project Structure](#project-structure)
 - [Prerequisites](#prerequisites)
 - [Setup Instructions](#setup-instructions)
 - [Usage](#usage)
-- [Configuration](#configuration)
 - [Database Schema](#database-schema)
-- [Dashboard](#dashboard)
-- [Results](#results)
+- [API Documentation](#api-documentation)
+- [AI Agent Capabilities](#ai-agent-capabilities)
+- [Configuration](#configuration)
+- [Performance Metrics](#performance-metrics)
 - [Troubleshooting](#troubleshooting)
 
 ## 🎯 Overview
 
 This project processes the Waymo End-to-End (E2E) driving dataset to automatically detect and classify edge case scenarios such as:
-- **Hard braking events** (sudden deceleration)
-- **Evasive maneuvers** (rapid lateral movements)
-- **High jerk events** (sudden acceleration changes)
+- **Hard braking events** (-0.8 m/s² threshold - emergency braking level)
+- **Evasive maneuvers** (0.6 m/s² lateral acceleration - sharp turns)
+- **High jerk events** (0.4 m/s³ - sudden acceleration changes)
 
-The system uses a **hybrid threshold approach** combining industry-standard safety thresholds with adaptive percentile-based detection from the dataset itself.
+The system combines **industry-standard safety thresholds** with **AI-powered analysis** using Google Gemini for both SQL query generation and computer vision analysis of driving scenarios.
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Frontend (React + TypeScript)              │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐│
+│  │  Dashboard       │  │  AI Chat        │  │  Charts      ││
+│  │  - KPI Cards     │  │  - SQL Queries  │  │  - Scatter   ││
+│  │  - Filters       │  │  - Vision AI    │  │  - Histogram ││
+│  │  - Pre-flagged   │  │  - Markdown     │  │  - Box Plot  ││
+│  └─────────────────┘  └─────────────────┘  └──────────────┘│
+│            │ TanStack Query (Data Fetching)                  │
+└────────────┼───────────────────────────────────────────────┘
+             │ HTTP/REST
+             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Backend (FastAPI + Python)                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐│
+│  │  REST API        │  │  Gemini Agent   │  │  SQLite DB   ││
+│  │  - Stats         │  │  - SQL Tool     │  │  - Frames    ││
+│  │  - Charts        │  │  - Vision Tool  │  │  - Edge Cases││
+│  │  - Tables        │  │  - Custom Funcs │  │  - Thumbnails││
+│  └─────────────────┘  └─────────────────┘  └──────────────┘│
+└─────────────────────────────────────────────────────────────┘
+             │
+             ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Data Processing (Docker Container)              │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐│
+│  │  TensorFlow      │  │  Motion Analysis│  │  Image Proc  ││
+│  │  - Proto Parsing │  │  - Accel/Jerk   │  │  - Panorama  ││
+│  │  - TFRecord I/O  │  │  - Severity Calc│  │  - Thumbnail ││
+│  └─────────────────┘  └─────────────────┘  └──────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Technology Stack:**
+- **Frontend:** React 19, TypeScript, Vite, TanStack Query, Recharts, Radix UI, Tailwind CSS
+- **Backend:** Python 3.11, FastAPI, SQLite, Google ADK (Gemini 2.0/2.5)
+- **Processing:** TensorFlow, OpenCV, NumPy, Pandas, Docker
 
 ## ✨ Features
 
-- ✅ **Automated Edge Case Detection** - Identifies anomalous driving patterns
-- ✅ **Hybrid Threshold System** - Combines hardcoded standards with adaptive thresholds
-- ✅ **Persistent Storage** - SQLite database for scalable data management
-- ✅ **Interactive Dashboard** - Real-time visualization and filtering with Plotly/Dash
-- ✅ **Batch Processing** - Process 700+ tfrecord files efficiently
-- ✅ **Motion Analysis** - Extracts speed, acceleration, jerk metrics
-- ✅ **Docker Support** - Containerized processing for consistency
+### Data Processing
+- ✅ **Automated Edge Case Detection** - Industry-standard thresholds
+- ✅ **Motion Analysis** - Speed, acceleration, jerk calculation from velocity data
+- ✅ **Normalized Severity Scoring** - 0.0-1.0 scale (3x threshold = 1.0)
+- ✅ **Panorama Generation** - 3-camera front view stitching (LEFT/CENTER/RIGHT)
+- ✅ **Batch Processing** - Docker containerized pipeline with automated cleanup
+- ✅ **Persistent Storage** - SQLite with WAL mode for concurrent access
+
+### Backend API
+- ✅ **RESTful Endpoints** - Dashboard stats, charts, tables with filtering
+- ✅ **AI Agent Integration** - Google Gemini 2.5 Flash orchestration
+- ✅ **Custom SQL Functions** - STDEV, VARIANCE, MEDIAN aggregates
+- ✅ **Vision Analysis** - Gemini 2.0 Flash Exp for image understanding
+- ✅ **Security** - SQL validation, blocks SELECT *, panorama access control
+
+### Frontend Dashboard
+- ✅ **Interactive Visualizations** - Scatter, histogram, box plot, pie charts
+- ✅ **Real-time Filtering** - Type, file, severity range with 150ms debouncing
+- ✅ **Performance Optimization** - Client-side sampling (max 2,000 points)
+- ✅ **AI Chat Interface** - Floating drawer with Markdown rendering
+- ✅ **Responsive Design** - Tailwind CSS + shadcn/ui components
+- ✅ **Image Viewer** - Thumbnail modal with panorama display
 
 ## 📁 Project Structure
 
 ```
 WaymoDataset/
-├── load_dataset.py              # Main data processing script
-├── analyze_edge_cases.py        # Data analysis utilities
-├── dashboard.py                 # Interactive Dash dashboard
-├── process_waymo.sh             # Batch processing script
-├── Dockerfile                   # Container configuration
+├── load_dataset.py              # Data processing script (TensorFlow + OpenCV)
+├── process_waymo.sh             # Automated batch processing pipeline
+├── dashboard.py                 # Legacy Dash dashboard
+├── explore_proto.py             # Proto structure exploration
+├── query_motion_data.py         # Motion data queries
+├── Dockerfile                   # Container for data processing
 ├── docker-compose.yml           # Docker Compose setup
-├── requirements.txt             # Python dependencies
-├── .gitignore                   # Git ignore rules
-├── README.md                    # Documentation
+├── README.md                    # This file
+│
+├── waymo-api/                   # FastAPI Backend
+│   ├── main.py                  # REST API endpoints (670 lines)
+│   ├── requirements.txt         # Python dependencies
+│   ├── .env                     # Environment variables (GOOGLE_API_KEY)
+│   └── Waymo_Agent/
+│       ├── agent.py             # Gemini AI agent with SQL + Vision tools
+│       └── __init__.py
+│
+├── Waymo-Dash/                  # React Frontend
+│   ├── src/
+│   │   ├── pages/
+│   │   │   ├── Index.tsx        # Main dashboard page
+│   │   │   └── NotFound.tsx
+│   │   ├── components/
+│   │   │   └── dashboard/
+│   │   │       ├── ChatSidebar.tsx      # AI chat interface
+│   │   │       ├── Charts.tsx           # Data visualizations
+│   │   │       ├── FilterControls.tsx   # Filter UI
+│   │   │       ├── KPICards.tsx         # Summary stats
+│   │   │       ├── PreFlaggedTable.tsx  # Edge case table
+│   │   │       ├── ThumbnailModal.tsx   # Image viewer
+│   │   │       └── AdHocQuery.tsx       # Custom queries
+│   │   └── hooks/
+│   │       ├── useEdgeCaseData.ts       # Data fetching hook
+│   │       └── useAgentChat.ts          # AI chat hook
+│   ├── package.json             # Node dependencies
+│   ├── vite.config.ts           # Vite configuration
+│   └── tsconfig.json            # TypeScript configuration
+│
 └── waymo_dataset/
-    ├── downloads/               # Temporary tfrecord files (gitignored)
-    │   └── *.tfrecord*          # Auto-deleted after processing
-    └── results/                 # Persistent results (tracked)
-        ├── edge_cases.db        # SQLite database
-        ├── thresholds.json      # Threshold config
-        ├── edge_cases.csv       # Exported data
-        └── edge_case_analysis.png # Visualization
+    ├── downloads/               # Downloaded TFRecord files (auto-cleanup)
+    ├── training/                # Training dataset files
+    └── results/
+        ├── edge_cases.db        # SQLite database (WAL mode)
+        └── thresholds.json      # Detection thresholds (industry standard)
 ```
-
-**Benefits:**
-- ✅ Database and thresholds are **version controlled**
-- ✅ Downloaded files are **auto-cleaned**
-- ✅ Easy to track progress across runs
-- ✅ Results persist, data doesn't
-- ✅ Collaborate with others (share `results/`)
 
 ## 🔧 Prerequisites
 
-### Docker Setup (Recommended)
-- Docker
-- Docker Compose
-- Google Cloud SDK (gsutil) - for downloading from GCS bucket
-- ~50GB free disk space (for 700 files)
-
-### Local Setup (Alternative)
-- Python 3.8+
-- pip/conda
-- Git
+### Backend Requirements
+- Python 3.11+
+- Google AI API Key (for Gemini models)
 - SQLite3
-- TensorFlow compatible system (GPU optional but recommended)
+
+### Frontend Requirements
+- Node.js 18+
+- npm or yarn
+
+### Data Processing (Optional)
+- Docker & Docker Compose (for containerized processing)
+- Google Cloud SDK (gsutil) - for downloading from Waymo GCS bucket
+- ~50GB free disk space (for batch processing)
 
 ## 📦 Setup Instructions
 
-### 🟢 Option 1: Docker Setup (Recommended - Automated)
+### 1️⃣ Backend Setup (FastAPI)
 
-#### 1. Clone the Repository
 ```bash
-git clone https://github.com/DIIZZY/WaymoDataset.git
-cd WaymoDataset
+# Navigate to backend directory
+cd waymo-api
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Create .env file with your Google AI API key
+echo "GOOGLE_API_KEY=your_api_key_here" > .env
+
+# Start the FastAPI server (runs on http://localhost:8000)
+python main.py
 ```
 
-#### 2. Configure Google Cloud Authentication
-```bash
-# Authenticate with Google Cloud
-gcloud auth application-default login
-
-# Set your project ID
-gcloud config set project YOUR_PROJECT_ID
+**Backend Dependencies:**
+```
+fastapi
+uvicorn
+pandas
+numpy
+google-adk
+python-dotenv
+opencv-python
+Pillow
 ```
 
-#### 3. Run Batch Processing Script (One Command!)
+### 2️⃣ Frontend Setup (React)
+
 ```bash
+# Navigate to frontend directory
+cd Waymo-Dash
+
+# Install dependencies
+npm install
+
+# Start the development server (runs on http://localhost:5173)
+npm run dev
+```
+
+**Frontend Dependencies:**
+- React 19 with TypeScript
+- TanStack Query (data fetching)
+- Recharts (visualizations)
+- Radix UI (components)
+- Tailwind CSS (styling)
+- Vaul (drawer component)
+
+### 3️⃣ Data Processing Setup (Docker)
+
+```bash
+# Build the Docker container
+docker-compose build
+
+# Process a single TFRecord file
+docker-compose run --rm waymo-e2e-loader python load_dataset.py /waymo_dataset/downloads/your_file.tfrecord
+
+# Or use the automated batch processing script
 bash process_waymo.sh
 ```
 
-**What it does:**
-- ✅ Builds Docker image automatically
-- ✅ Downloads tfrecord files from Waymo GCS bucket
-- ✅ Processes each file in the container
-- ✅ Stores results in SQLite database
-- ✅ Cleans up temporary files
-- ✅ Generates analysis and dashboard-ready data
-
-**Progress Output:**
-```
-Building Docker image...
-✓ Build complete
-
-Fetching list of files from GCS...
-Processing: gs://waymo_open_dataset_end_to_end_camera_v_1_0_0/test_202504211836-202504220845.tfrecord-00000-of-00266
---- Processing file ---
-✓ Successfully loaded dataset
-✓ Database initialized
---- Frame 1 ---
-Speed range: 25.53 - 25.88 m/s
-⚠ HARD BRAKE DETECTED: 0.5300 m/s²
-✓ Stored 2 edge case(s) to database
-
-Done with test_202504211836-202504220845.tfrecord-00000-of-00266.
-```
-
-#### 4. View Results
-```bash
-# Start dashboard
-python dashboard.py
-
-# Or generate analysis report
-python analyze_edge_cases.py
-```
-
----
-
-### 🟡 Option 2: Local Setup (Manual)
-
-#### 1. Clone the Repository
-```bash
-git clone https://github.com/DIIZZY/WaymoDataset.git
-cd WaymoDataset
-```
-
-#### 2. Create Virtual Environment
-```bash
-python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On Linux/Mac:
-source venv/bin/activate
-```
-
-#### 3. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-Or install manually:
-```bash
-pip install tensorflow==2.12.0
-pip install waymo-open-dataset-tf-2-12-0==1.6.7
-pip install numpy pandas
-pip install plotly dash
-pip install matplotlib
-pip install pandas
-```
-
-#### 4. Verify Installation
-```bash
-python -c "import tensorflow; print(f'TensorFlow: {tensorflow.__version__}')"
-python -c "from waymo_open_dataset.protos import end_to_end_driving_data_pb2; print('✓ Waymo protobuf loaded')"
-```
-
-#### 5. Process Files Manually
-```bash
-# Single file
-python load_dataset.py /path/to/file.tfrecord-00000-of-00266
-
-# Batch process
-for file in waymo_dataset/training/*.tfrecord*; do
-    python load_dataset.py "$file"
-done
-```
-
----
+**process_waymo.sh Features:**
+- Downloads 5 files from Waymo GCS bucket
+- Processes each file sequentially
+- Auto-deletes tfrecord after processing (saves disk space)
+- Preserves database and results
 
 ## 🚀 Usage
 
-### 1. Process TFRecord Files
+### Starting the System
 
-#### Using Docker (Recommended):
+1. **Start Backend:**
 ```bash
-# All files via batch script
+cd waymo-api
+python main.py
+# API available at http://localhost:8000
+```
+
+2. **Start Frontend:**
+```bash
+cd Waymo-Dash
+npm run dev
+# Dashboard available at http://localhost:5173
+```
+
+3. **Access Dashboard:**
+- Open browser to `http://localhost:5173`
+- Use filters to explore edge cases
+- Click chat icon to interact with AI agent
+
+### Processing Waymo Data
+
+#### Option 1: Single File Processing
+```bash
+# Download a file
+gsutil cp gs://waymo_open_dataset_e2ed/2025.01.15_E2ED_Training_Release/tfrecords/file.tfrecord ./waymo_dataset/downloads/
+
+# Process with Docker
+docker-compose run --rm waymo-e2e-loader python load_dataset.py /waymo_dataset/downloads/file.tfrecord
+
+# Cleanup
+rm ./waymo_dataset/downloads/file.tfrecord
+```
+
+#### Option 2: Batch Processing (5 files)
+```bash
 bash process_waymo.sh
-
-# Single file via Docker
-docker-compose run --rm waymo-e2e-loader \
-    python load_dataset.py /waymo_dataset/training/file.tfrecord-00000-of-00266
 ```
 
-#### Local:
-```bash
-# Single file
-python load_dataset.py /path/to/file.tfrecord-00000-of-00266
+### Using the AI Agent
 
-# Multiple files
-for file in waymo_dataset/training/*.tfrecord*; do
-    python load_dataset.py "$file"
-done
+The AI agent can answer questions about the dataset using SQL queries and vision analysis:
+
+**Example Queries:**
+
+1. **SQL-based queries:**
+```
+"How many hard braking events occurred?"
+"Show me the top 5 most severe edge cases"
+"What's the average severity for evasive maneuvers?"
+"Which file has the most edge cases?"
+"What's the standard deviation of severity scores?"
 ```
 
-**Output Example:**
+2. **Vision analysis queries:**
 ```
---- Processing file: file.tfrecord-00000-of-00266 ---
-✓ Successfully loaded dataset
-✓ Database initialized: edge_cases.db
-✓ Loaded saved thresholds from thresholds.json
-
-✓ Active Thresholds:
-  Hard brake: -0.8000 m/s²
-  Lateral: 0.6000 m/s²
-  Jerk: 0.4000 m/s³
-
---- Frame 1 ---
-Speed range: 25.53 - 25.88 m/s
-Max acceleration: 0.09 m/s²
-
---- Frame 2 ---
-Speed range: 3.46 - 13.12 m/s
-Max acceleration: 1.20 m/s²
-⚠ HARD BRAKE DETECTED: 0.5300 m/s²
-⚠ HIGH JERK DETECTED: 0.1700 m/s³
-✓ Stored 2 edge case(s) to database
+"What caused the edge case in frame 51?"
+"Analyze the driving scenario in frame 123"
+"Show me what happened during frame 87 with hard braking"
 ```
 
-### 2. Analyze Results
-
-```bash
-python analyze_edge_cases.py
+3. **Combined queries:**
+```
+"Find frames with hard braking while turning left and analyze them"
+"What's common among the most severe edge cases?"
 ```
 
-**Output:**
+## 🗄️ Database Schema
+
+### Simplified Schema (Current)
+
+The database uses a **simplified foreign key design** for efficient JOINs:
+
+```sql
+-- Frames table (primary data)
+CREATE TABLE frames (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,  -- Global unique key
+    frame_id INTEGER NOT NULL,              -- Per-file counter (NOT unique across files!)
+    file_name TEXT NOT NULL,
+    timestamp BIGINT,
+    intent TEXT,                            -- "go_straight", "turn_left", "turn_right", etc.
+    speed_min REAL,
+    speed_max REAL,
+    speed_mean REAL,
+    accel_x_min REAL,                       -- Longitudinal acceleration (braking/acceleration)
+    accel_x_max REAL,
+    accel_y_min REAL,                       -- Lateral acceleration (turning)
+    accel_y_max REAL,
+    jerk_x_max REAL,                        -- Longitudinal jerk (smoothness)
+    jerk_y_max REAL,                        -- Lateral jerk
+    panorama_thumbnail BLOB,                -- 3-camera front view JPEG (512px width)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Edge cases table (detected anomalies)
+CREATE TABLE edge_cases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    frame_table_id INTEGER NOT NULL,        -- Foreign key to frames.id
+    edge_case_type TEXT NOT NULL,           -- "hard_brake", "evasive_maneuver", "high_jerk"
+    severity REAL NOT NULL,                 -- 0.0-1.0 normalized (3x threshold = 1.0)
+    reason TEXT,                            -- Human-readable explanation
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(frame_table_id) REFERENCES frames(id)
+);
+
+-- Indexes for performance
+CREATE INDEX idx_frames_file ON frames(file_name);
+CREATE INDEX idx_edge_cases_frame ON edge_cases(frame_table_id);
+CREATE INDEX idx_edge_cases_type ON edge_cases(edge_case_type);
 ```
-✓ Found database at: waymo_dataset/training/edge_cases.db
 
-✓ Total edge cases: 4,237
+**Key Design Decisions:**
 
-Breakdown by type:
-hard_brake              2,156
-high_jerk              1,890
-evasive_maneuver         191
+1. **Simple Foreign Key:** Use `frames.id` (auto-increment) instead of composite key (frame_id + file_name)
+   - ✅ Eliminates JOIN duplicates
+   - ✅ Faster queries
+   - ✅ Simpler agent SQL generation
 
-Severity statistics:
-                count    mean   std     min     25%     50%     75%     max
-hard_brake    2156.0  0.5234 0.2103  0.5001  0.5089  0.5234  0.5412  0.8765
-high_jerk     1890.0  0.4123 0.1567  0.4001  0.4045  0.4123  0.4289  0.6234
-evasive_maneuver 191.0  0.5890 0.0987  0.6001  0.6123  0.6234  0.6456  0.7012
+2. **Normalized Severity:** 0.0-1.0 scale instead of raw acceleration values
+   - 0.0 = at threshold (barely an edge case)
+   - 0.5 = 2x threshold (moderate severity)
+   - 1.0 = 3x threshold (extremely severe)
 
-✓ Analysis plot saved to waymo_dataset/training/edge_case_analysis.png
-✓ Data exported to waymo_dataset/training/edge_cases.csv
+3. **Embedded Thumbnails:** BLOB storage for panorama images
+   - ✅ No external file dependencies
+   - ✅ Faster vision analysis
+   - ✅ Simplified deployment
+
+## 📡 API Documentation
+
+### Base URL: `http://localhost:8000`
+
+### Dashboard Endpoints
+
+#### `GET /api/dashboard/summary`
+Returns dashboard summary statistics.
+
+**Response:**
+```json
+{
+  "totalEdgeCases": 115,
+  "filesProcessed": 5,
+  "edgeCaseTypes": ["hard_brake", "evasive_maneuver", "high_jerk"],
+  "filesWithEdgeCases": ["file1.tfrecord", "file2.tfrecord", ...],
+  "edgeCaseTypeCounts": {
+    "hard_brake": 35,
+    "evasive_maneuver": 20,
+    "high_jerk": 60
+  }
+}
 ```
 
-### 3. View Interactive Dashboard
+#### `GET /api/dashboard/filters`
+Returns available filter options.
 
-```bash
-python dashboard.py
+**Response:**
+```json
+{
+  "types": ["hard_brake", "evasive_maneuver", "high_jerk"],
+  "files": ["file1.tfrecord", "file2.tfrecord", ...]
+}
 ```
 
-Then open your browser to: **http://localhost:8050**
+### Chart Endpoints
 
-**Dashboard Features:**
-- 📊 Summary Statistics (Total Cases, Files, Types, Max Severity)
-- 🔍 Dynamic Filters (Edge Case Type, File, Severity Range)
-- 📈 4 Interactive Charts:
-  - Distribution of Edge Case Types (Pie)
-  - Severity Distribution (Histogram)
-  - Severity by Type (Box Plot)
-  - Edge Cases by File (Top 10 Bar)
-- 📋 Detailed Data Table (sortable, filterable)
+#### `GET /api/charts/scatter`
+Returns scatter plot data (speed vs acceleration).
 
----
+**Query Parameters:**
+- `type` (optional): Filter by edge case type
+- `file` (optional): Filter by file name
+- `severity_min` (optional): Minimum severity
+- `severity_max` (optional): Maximum severity
 
-## 📊 Analysis Visualization
+**Response:**
+```json
+{
+  "data": [
+    {
+      "speed": 15.2,
+      "accel": -0.92,
+      "severity": 0.15,
+      "edge_case_type": "hard_brake",
+      "file_name": "file1.tfrecord"
+    },
+    ...
+  ]
+}
+```
 
-### Edge Case Severity Distribution (Example Output)
+#### `GET /api/charts/histogram`
+Returns severity distribution histogram.
 
-![Edge Case Analysis](docs/edge_case_analysis.png)
+**Response:**
+```json
+{
+  "data": [
+    {"severity_range": "0.0-0.1", "count": 25},
+    {"severity_range": "0.1-0.2", "count": 35},
+    ...
+  ]
+}
+```
 
-**Interpretation:**
-- **Evasive Maneuver**: Wide range (0.2-0.9 m/s²) with median ~0.4 m/s²
-- **Hard Brake**: Concentrated around 0.3-0.8 m/s² with several outliers
-- **High Jerk**: Tighter distribution (0.15-1.2 m/s³) with many mild events
+#### `GET /api/charts/box`
+Returns box plot data for motion metrics.
 
-This visualization shows the distribution and outliers for each edge case type, helping identify which scenarios are most common and which are truly exceptional.
+**Response:**
+```json
+{
+  "data": [
+    {
+      "metric": "speed_max",
+      "min": 0.0,
+      "q1": 5.2,
+      "median": 12.5,
+      "q3": 18.9,
+      "max": 29.78
+    },
+    ...
+  ]
+}
+```
 
----
+#### `GET /api/charts/pie`
+Returns pie chart data for edge case type distribution.
+
+**Response:**
+```json
+{
+  "data": [
+    {"name": "hard_brake", "value": 35},
+    {"name": "evasive_maneuver", "value": 20},
+    {"name": "high_jerk", "value": 60}
+  ]
+}
+```
+
+### Table Endpoints
+
+#### `GET /api/table/preflagged`
+Returns paginated pre-flagged edge cases.
+
+**Query Parameters:**
+- `page` (default: 1): Page number
+- `limit` (default: 25): Items per page
+- `type` (optional): Filter by edge case type
+- `file` (optional): Filter by file name
+- `severity_min` (optional): Minimum severity
+- `severity_max` (optional): Maximum severity
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "frame_id": 51,
+      "file_name": "file1.tfrecord",
+      "edge_case_type": "hard_brake",
+      "severity": 0.65,
+      "intent": "go_straight",
+      "speed_max": 18.5,
+      "accel_x_min": -1.15,
+      "panorama_base64": "data:image/jpeg;base64,/9j/4AAQ..."
+    },
+    ...
+  ],
+  "total": 115,
+  "page": 1,
+  "pages": 5
+}
+```
+
+### AI Agent Endpoints
+
+#### `POST /api/agent/chat`
+Send a message to the AI agent for SQL queries or vision analysis.
+
+**Request:**
+```json
+{
+  "message": "How many hard braking events occurred?",
+  "session_id": "optional-session-id"
+}
+```
+
+**Response:**
+```json
+{
+  "response": "According to the database, there are 35 hard braking events detected across all files..."
+}
+```
+
+## 🤖 AI Agent Capabilities
+
+The AI agent uses **Google ADK framework** with two specialized tools:
+
+### 1. SQL Query Tool (`execute_sql_query`)
+
+**Features:**
+- Executes SELECT queries on the database
+- Custom aggregate functions: STDEV, VARIANCE, MEDIAN
+- Automatic SQL validation (blocks SELECT *, panorama_thumbnail)
+- Returns JSON formatted results
+
+**Custom Aggregate Functions:**
+```sql
+-- Standard deviation (sample)
+SELECT edge_case_type, STDEV(severity) as severity_std
+FROM edge_cases
+GROUP BY edge_case_type;
+
+-- Median severity
+SELECT edge_case_type, MEDIAN(severity) as median_severity
+FROM edge_cases
+GROUP BY edge_case_type;
+
+-- Variance
+SELECT VARIANCE(severity) as severity_variance FROM edge_cases;
+```
+
+**Example Agent SQL Generation:**
+```
+User: "Show high severity hard brakes"
+
+Agent generates:
+SELECT f.frame_id, f.file_name, ec.severity, f.speed_max, f.accel_x_min
+FROM frames f
+JOIN edge_cases ec ON f.id = ec.frame_table_id
+WHERE ec.edge_case_type = 'hard_brake' AND ec.severity > 0.8
+ORDER BY ec.severity DESC;
+```
+
+### 2. Vision Analysis Tool (`classify_image`)
+
+**Features:**
+- Retrieves panorama thumbnail from database
+- Converts BLOB to base64 for Gemini Vision API
+- Provides motion context (speed, acceleration, jerk, intent)
+- Uses Gemini 2.0 Flash Exp for image understanding
+
+**Example Vision Analysis:**
+```
+User: "What caused the edge case in frame 51?"
+
+Agent:
+1. Queries database for frame 51 data
+2. Retrieves panorama_thumbnail BLOB
+3. Sends to Gemini Vision with context:
+   - Intent: "go_straight"
+   - Speed: 18.5 m/s
+   - Accel: -1.15 m/s²
+   - Edge case: "hard_brake", severity 0.65
+
+Response:
+"VISION ANALYSIS: The panorama shows a vehicle ahead suddenly
+braking, causing the ego vehicle to perform emergency braking.
+The road is clear with good visibility.
+
+MOTION DATA: Speed was 18.5 m/s when hard braking (-1.15 m/s²)
+was detected. This is 44% beyond the -0.8 threshold, indicating
+moderate severity (0.65/1.0)."
+```
+
+### Agent System Instruction
+
+The agent is configured with comprehensive schema documentation:
+
+```python
+root_agent = Agent(
+    model='gemini-2.5-flash',
+    instruction="""Expert Waymo Data Analyst with SQL + vision capabilities.
+
+DATABASE SCHEMA:
+- frames.id (PK) - Global unique key for JOINs
+- frames.frame_id - Per-file counter (NOT unique across files!)
+- edge_cases.frame_table_id (FK) - References frames.id
+
+CRITICAL SQL RULES:
+1. JOIN KEY: Always use frames.id = edge_cases.frame_table_id
+2. NEVER SELECT panorama_thumbnail (use classify_image tool instead)
+3. NEVER use SELECT * FROM frames (too much data)
+4. Supported functions: COUNT, AVG, STDEV, VARIANCE, MEDIAN, GROUP_CONCAT
+
+EXAMPLES:
+- "Show high severity": 
+  SELECT f.frame_id, ec.severity FROM frames f 
+  JOIN edge_cases ec ON f.id = ec.frame_table_id 
+  WHERE ec.severity > 0.8
+
+- "Analyze frame 123": classify_image(123)
+
+- "Hard brakes while turning":
+  SELECT f.frame_id, f.intent FROM frames f
+  JOIN edge_cases ec ON f.id = ec.frame_table_id
+  WHERE ec.edge_case_type = 'hard_brake' 
+  AND f.intent LIKE '%turn%'
+""",
+    tools=[execute_sql_query, classify_image]
+)
+```
 
 ## ⚙️ Configuration
 
-### Threshold Configuration
+### Thresholds (Industry Standard)
 
-Thresholds are stored in `waymo_dataset/training/thresholds.json`:
+Located in `waymo_dataset/results/thresholds.json`:
 
 ```json
 {
@@ -319,311 +649,274 @@ Thresholds are stored in `waymo_dataset/training/thresholds.json`:
 }
 ```
 
-**Thresholds Explained:**
+**Threshold Definitions:**
 
-| Metric | Value | Meaning | Example |
-|--------|-------|---------|---------|
-| **hard_brake** | -0.8 m/s² | Acceleration below this triggers hard brake detection | Emergency or sudden braking |
-| **lateral** | 0.6 m/s² | Lateral acceleration above this triggers evasive maneuver detection | Sharp turns or lane changes |
-| **jerk** | 0.4 m/s³ | Rate of acceleration change above this triggers high jerk detection | Sudden pedal input changes |
+| Threshold | Value | Description |
+|-----------|-------|-------------|
+| `hard_brake` | -0.8 m/s² | Emergency braking level (negative = deceleration) |
+| `lateral` | 0.6 m/s² | Evasive maneuver threshold (sharp turns) |
+| `jerk` | 0.4 m/s³ | Abrupt pedal input (sudden acceleration change) |
 
-### Recalculate Adaptive Thresholds
-
-To recalculate thresholds from a fresh dataset:
+**Severity Calculation:**
 
 ```python
-# In load_dataset.py, change:
-THRESHOLDS = load_or_calculate_thresholds(filename, force_recalculate=True)
+# Normalized severity: 0.0 at threshold, 1.0 at 3x threshold
+def calculate_normalized_severity(raw_value, threshold, is_negative=False):
+    if is_negative:
+        # For hard braking (negative acceleration)
+        raw_abs = abs(raw_value)
+        threshold_abs = abs(threshold)
+        max_expected = threshold_abs * 3
+        severity = (raw_abs - threshold_abs) / (max_expected - threshold_abs)
+    else:
+        # For lateral/jerk (positive values)
+        max_expected = threshold * 3
+        severity = (raw_value - threshold) / (max_expected - threshold)
+    
+    return max(0.0, min(severity, 1.0))  # Clamp to [0, 1]
 ```
 
-This will:
-1. Scan the entire file
-2. Calculate 5th and 95th percentiles
-3. Save new thresholds to `thresholds.json`
-4. Use them for all subsequent files
+**Examples:**
+- `accel_x_min = -0.8` → severity = 0.0 (at threshold)
+- `accel_x_min = -1.6` → severity = 0.5 (2x threshold)
+- `accel_x_min = -2.4` → severity = 1.0 (3x threshold)
 
----
+### Environment Variables
 
-## 🗄️ Database Schema
-
-### `edge_cases` Table
-
-```sql
-CREATE TABLE edge_cases (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    frame_id INTEGER,              -- Frame number in file
-    file_name TEXT,                -- Source tfrecord filename
-    timestamp BIGINT,              -- Microsecond timestamp
-    edge_case_type TEXT,           -- hard_brake, evasive_maneuver, high_jerk
-    severity REAL,                 -- Magnitude of the anomaly
-    speed_min REAL,                -- Minimum speed in frame (m/s)
-    speed_max REAL,                -- Maximum speed in frame (m/s)
-    accel_x_min REAL,              -- Minimum longitudinal accel (m/s²)
-    accel_y_max REAL,              -- Maximum lateral accel (m/s²)
-    created_at TIMESTAMP           -- When record was created
-);
+Create `waymo-api/.env`:
+```bash
+GOOGLE_API_KEY=your_google_ai_api_key_here
 ```
 
-### Query Examples
+Get your API key from: https://aistudio.google.com/app/apikey
 
-```sql
--- Find worst hard braking events
-SELECT * FROM edge_cases 
-WHERE edge_case_type = 'hard_brake' 
-ORDER BY severity DESC 
-LIMIT 10;
+## 📊 Performance Metrics
 
--- Count edge cases by file
-SELECT file_name, edge_case_type, COUNT(*) as count
-FROM edge_cases
-GROUP BY file_name, edge_case_type
-ORDER BY count DESC;
+### Dataset Processing Results (5 Files)
 
--- Average severity by type
-SELECT edge_case_type, AVG(severity) as avg_severity
-FROM edge_cases
-GROUP BY edge_case_type;
+**Overall Statistics:**
+- **Total Frames:** 3,819
+- **Edge Cases Detected:** 115 (3.0% detection rate)
+- **Files Processed:** 5 tfrecord files
+- **Processing Time:** ~2-3 minutes per file (Docker)
 
--- Find frames with multiple simultaneous events
-SELECT file_name, frame_id, COUNT(*) as event_count
-FROM edge_cases
-GROUP BY file_name, frame_id
-HAVING COUNT(*) > 1
-ORDER BY event_count DESC;
-```
+**Edge Case Distribution:**
+| Type | Count | Percentage |
+|------|-------|------------|
+| High Jerk | 60 | 52.2% |
+| Hard Brake | 35 | 30.4% |
+| Evasive Maneuver | 20 | 17.4% |
 
----
+**Severity Statistics:**
+- **Minimum:** 0.0007 (barely above threshold)
+- **Maximum:** 0.9987 (near 3x threshold)
+- **Average:** 0.1785 (moderate severity)
+- **Standard Deviation:** 0.215
 
-## 📊 Dashboard
+**Motion Extremes:**
+- **Max Speed:** 29.78 m/s (~66 mph)
+- **Min Acceleration (braking):** -1.72 m/s²
+- **Max Lateral Acceleration:** 0.92 m/s²
+- **Max Jerk:** 1.20 m/s³
 
-### Interactive Visualizations
+### Performance Optimizations
 
-**Summary Statistics:**
-- Total edge cases detected
-- Number of files processed
-- Number of edge case types
-- Maximum severity recorded
+**Backend:**
+- ✅ SQLite WAL mode for concurrent reads
+- ✅ Indexed foreign keys (frame_table_id)
+- ✅ Simplified JOINs (no CTE aggregation needed)
+- ✅ Pandas for efficient data transformations
 
-**Filters:**
-- 🔎 Edge Case Type (All, Hard Brake, Evasive Maneuver, High Jerk)
-- 📁 File Name (process specific files)
-- 📏 Severity Range (slider for custom range)
+**Frontend:**
+- ✅ Client-side data sampling (max 2,000 scatter points)
+- ✅ Debounced severity slider (150ms delay)
+- ✅ TanStack Query caching (5-minute stale time)
+- ✅ Lazy loading for thumbnails (base64 on-demand)
 
-**Charts:**
-1. **Distribution Pie Chart** - Shows proportion of each edge case type
-2. **Severity Histogram** - Shows how many events at each severity level
-3. **Box Plot** - Severity ranges by edge case type
-4. **Bar Chart** - Top 10 files with most edge cases
-
-**Data Table:**
-- Detailed view of all detected edge cases
-- Sortable columns
-- Motion data (speed, acceleration)
-- Export-ready format
-
----
-
-## 📈 Results
-
-### Example Output
-
-```
-✓ Total edge cases: 4,237
-
-Breakdown by type:
-  hard_brake: 2,156 (50.9%)
-  high_jerk: 1,890 (44.6%)
-  evasive_maneuver: 191 (4.5%)
-
-Severity Statistics:
-  Hard Brake - Min: 0.50, Max: 0.88, Mean: 0.52 m/s²
-  High Jerk - Min: 0.40, Max: 0.62, Mean: 0.41 m/s³
-  Evasive - Min: 0.60, Max: 0.70, Mean: 0.59 m/s²
-```
-
-### Files Generated
-
-- `edge_cases.db` - SQLite database with all results
-- `edge_cases.csv` - CSV export for analysis
-- `edge_case_analysis.png` - Statistical visualization
-- `thresholds.json` - Threshold configuration
-
----
+**Data Processing:**
+- ✅ Docker containerization (isolated environment)
+- ✅ Auto-cleanup of tfrecord files (saves ~10GB per file)
+- ✅ Batch processing pipeline (5 files sequentially)
+- ✅ JPEG thumbnail compression (512px width, 75% quality)
 
 ## 🐛 Troubleshooting
 
-### Docker Setup Issues
+### Common Issues
 
-#### Docker Build Fails
-```
-Error: Cannot connect to Docker daemon
-```
-**Solution:** Ensure Docker Desktop is running:
-```bash
-# Windows/Mac: Start Docker Desktop application
-# Linux: Start Docker daemon
-sudo systemctl start docker
+#### 1. Backend won't start - Missing GOOGLE_API_KEY
 
-# Verify
-docker --version
+**Error:**
+```
+ValueError: GOOGLE_API_KEY environment variable not found
 ```
 
-#### Permission Denied (Linux)
-```
-Got permission denied while trying to connect to Docker daemon
-```
 **Solution:**
 ```bash
-sudo usermod -aG docker $USER
-newgrp docker
+cd waymo-api
+echo "GOOGLE_API_KEY=your_key_here" > .env
 ```
 
-### Database Issues
+#### 2. Frontend can't connect to backend
 
-#### Database I/O Error
+**Error:**
 ```
-sqlite3.OperationalError: disk I/O error
-```
-**Solution:** Ensure directory exists and is writable:
-```bash
-mkdir -p waymo_dataset/training
-chmod 755 waymo_dataset/training
+Failed to fetch: http://localhost:8000/api/dashboard/summary
 ```
 
-#### Database Locked
+**Solution:**
+- Ensure backend is running: `cd waymo-api && python main.py`
+- Check backend is on port 8000: `netstat -an | findstr 8000` (Windows)
+- Verify no CORS issues in browser console
+
+#### 3. Database locked error
+
+**Error:**
 ```
 sqlite3.OperationalError: database is locked
 ```
-**Solution:** Close other connections and restart:
-```bash
-# Remove lock files if they exist
-rm waymo_dataset/training/edge_cases.db-wal
-rm waymo_dataset/training/edge_cases.db-shm
 
-# Restart processing
-python load_dataset.py /path/to/file.tfrecord
+**Solution:**
+- Enable WAL mode (already configured):
+  ```python
+  cursor.execute("PRAGMA journal_mode=WAL")
+  ```
+- Close all database connections properly
+- Restart backend if issue persists
+
+#### 4. Agent SQL queries return empty results
+
+**Possible Causes:**
+- Using `frame_id` without `file_name` (frame_id not unique across files!)
+- Missing JOIN on `frames.id = edge_cases.frame_table_id`
+
+**Solution:**
+- Always JOIN using `frames.id` as the foreign key
+- Refer to agent system instruction for correct JOIN syntax
+
+#### 5. Vision analysis fails
+
+**Error:**
+```
+ValueError: Cannot select 'panorama_thumbnail'. Use classify_image() instead
 ```
 
-### Python Issues
+**Solution:**
+- Don't query panorama_thumbnail directly via SQL
+- Use agent's classify_image tool: `"Analyze frame 51"`
 
-#### Missing Protobuf
+#### 6. Docker processing fails
+
+**Error:**
 ```
-ModuleNotFoundError: No module named 'waymo_open_dataset'
+Cannot connect to the Docker daemon
 ```
+
 **Solution:**
 ```bash
-pip install waymo-open-dataset-tf-2-12-0==1.6.7
+# Windows: Start Docker Desktop
+# Linux: sudo systemctl start docker
+
+# Rebuild container if needed
+docker-compose build --no-cache
 ```
 
-#### TensorFlow Version Conflict
+### Performance Issues
+
+#### Scatter chart too slow with many points
+
+**Solution:** Already optimized with client-side sampling (max 2,000 points)
+
+#### Severity slider lagging
+
+**Solution:** Already optimized with 150ms debounce
+
+#### Agent responses slow
+
+**Optimization Tips:**
+- Use specific queries instead of `SELECT *`
+- Limit results with `LIMIT` clause
+- Vision analysis takes 2-5 seconds (Gemini API call)
+
+### Data Quality Issues
+
+#### Low detection rate (< 1%)
+
+**Check:**
+- Thresholds too strict? (default: -0.8, 0.6, 0.4)
+- Motion data valid? (check velocity array length > 0)
+
+#### Severity scores > 1.0
+
+**This should never happen** - severity is clamped to [0, 1]
+- Check `calculate_normalized_severity` function
+
+## 📝 Development Notes
+
+### Adding New Edge Case Types
+
+1. **Update thresholds.json:**
+```json
+{
+  "hard_brake": -0.8,
+  "lateral": 0.6,
+  "jerk": 0.4,
+  "low_speed_stop": 2.0
+}
 ```
-ImportError: Incompatible versions...
+
+2. **Add detection logic in load_dataset.py:**
+```python
+# Detect low speed stop
+if speed_mean < THRESHOLDS['low_speed_stop']:
+    severity = calculate_normalized_severity(...)
+    store_edge_case(db_conn, frame_table_id, 'low_speed_stop', severity, reason)
 ```
-**Solution:** Use compatible versions:
+
+3. **Update frontend filters** in FilterControls.tsx
+
+### Database Migrations
+
+**To reset database:**
 ```bash
-pip install tensorflow==2.12.0
-pip install waymo-open-dataset-tf-2-12-0==1.6.7
+# Backup first!
+cp waymo_dataset/results/edge_cases.db waymo_dataset/results/edge_cases_backup.db
+
+# Delete database
+rm waymo_dataset/results/edge_cases.db
+
+# Reprocess data
+bash process_waymo.sh
 ```
 
-#### Dashboard Won't Start
-```
-ModuleNotFoundError: No module named 'dash'
-```
-**Solution:**
+### Testing Agent Queries
+
 ```bash
-pip install dash plotly pandas
+# Test backend directly
+curl -X POST http://localhost:8000/api/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How many edge cases?"}'
 ```
 
-### GCS Issues
-
-#### gsutil Not Found
-```
-command not found: gsutil
-```
-**Solution:** Install Google Cloud SDK:
-```bash
-# Windows: Download from https://cloud.google.com/sdk/docs/install
-# Linux/Mac:
-curl https://sdk.cloud.google.com | bash
-exec -l $SHELL
-gcloud init
-```
-
-#### Authentication Error
-```
-ERROR: (gcloud.auth.application-default.login) User cancelled login.
-```
-**Solution:**
-```bash
-gcloud auth application-default login
-# Follow browser prompts to authorize
-```
-
----
-
-## 📝 Performance Notes
-
-- **Processing Speed:** ~1-2 seconds per file (770 frames)
-- **Database Size:** ~5-10 MB per 100 edge cases
-- **Memory Usage:** ~500 MB for processing
-- **Disk Space:** ~50GB for full 700-file dataset
-- **Batch Processing:** Full 700-file dataset: ~20-30 minutes (Docker)
-- **Dashboard Loading:** <5 seconds with 10,000+ records
-
-### Optimization Tips
-
-1. **Use SSD** for database storage (faster I/O)
-2. **Increase Docker memory** for faster processing
-3. **Run on Linux** for better performance
-4. **Process in parallel** with multiple Docker containers
-5. **Filter results** before analysis for faster dashboard loading
-
----
-
-## 🔄 Workflow
-
-```
-TFRecord Files (GCS)
-        ↓
-process_waymo.sh (Docker - Download & Process)
-        ↓
-load_dataset.py (Extract Motion Data & Detect)
-        ↓
-edge_cases.db (SQLite Storage)
-        ↓
-analyze_edge_cases.py (Summarize & Report)
-        ↓
-dashboard.py (Interactive Visualization)
-        ↓
-Insights & Reports
-```
-
----
-
-## 📚 References
+## 📚 Resources
 
 - [Waymo Open Dataset](https://waymo.com/open/)
-- [Waymo E2E Dataset Docs](https://github.com/waymo-research/waymo-open-dataset)
-- [TensorFlow Documentation](https://www.tensorflow.org/)
-- [Plotly Dash](https://dash.plotly.com/)
-- [SQLite Documentation](https://www.sqlite.org/docs.html)
-- [Docker Documentation](https://docs.docker.com/)
-
----
+- [Google ADK Documentation](https://github.com/googleapis/python-genai)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [React Documentation](https://react.dev/)
+- [Recharts Documentation](https://recharts.org/)
 
 ## 📄 License
 
-This project is for educational and research purposes.
-
-## 👤 Author
-
-DIIZZY
+MIT License - See LICENSE file for details
 
 ## 🤝 Contributing
 
-Contributions welcome! Please feel free to submit issues or pull requests.
+Contributions welcome! Please open an issue or PR.
+
+## 📧 Contact
+
+For questions or issues, please open a GitHub issue.
 
 ---
 
-**Last Updated:** October 2025
-**Status:** ✅ Active Development
+**Built with ❤️ for autonomous vehicle safety research**
