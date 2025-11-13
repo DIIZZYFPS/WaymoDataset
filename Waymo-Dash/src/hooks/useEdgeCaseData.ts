@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
-const API_BASE = "http://localhost:8000";
+// Automatically use production API in production, localhost in development
+const API_BASE = import.meta.env.PROD
+  ? "https://waymodataset-production.up.railway.app"
+  : "http://localhost:8000";
 
 // Phase 2 Optimization: Single batched dashboard summary endpoint
 export const useDashboardSummary = () => {
@@ -101,7 +104,9 @@ export const usePreFlaggedData = (page: number) => {
   return useQuery({
     queryKey: ["preflagged", page],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/query/pre-flagged?page=${page}`);
+      const res = await fetch(
+        `${API_BASE}/api/query/pre-flagged?page=${page}`
+      );
       if (!res.ok) throw new Error("Failed to fetch pre-flagged data");
       return res.json();
     },
@@ -126,7 +131,9 @@ export const useAdHocQuery = (queryName: string | null) => {
     queryKey: ["adhoc", queryName],
     queryFn: async () => {
       if (!queryName) return [];
-      const res = await fetch(`${API_BASE}/api/query/ad-hoc/${queryName}`);
+      const res = await fetch(
+        `${API_BASE}/api/query/ad-hoc/${queryName}`
+      );
       if (!res.ok) throw new Error(`Failed to fetch ad-hoc query: ${queryName}`);
       return res.json();
     },

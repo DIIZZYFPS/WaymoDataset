@@ -4,8 +4,6 @@ import sqlite3
 import pandas as pd
 import base64
 import math  # ← Add this for STDEV function
-from io import BytesIO
-from PIL import Image
 import re
 from google import genai
 from google.genai import types

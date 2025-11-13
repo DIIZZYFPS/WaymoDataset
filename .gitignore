@@ -12,8 +12,9 @@ __pycache__/
 *.swp
 
 # Downloaded data (temporary)
-waymo_dataset/downloads/
+waymo_dataset/
 *.tfrecord*
+
 
 # Local environment
 .env
