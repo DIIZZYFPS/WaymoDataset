@@ -8,8 +8,12 @@ interface ChatResponse {
   response: string;
 }
 
+const API_BASE = import.meta.env.PROD
+  ? "https://waymodataset-production.up.railway.app"
+  : "http://localhost:8000";
+
 const sendChatMessage = async (message: string): Promise<ChatResponse> => {
-  const response = await fetch("http://localhost:8000/api/agent/chat", {
+  const response = await fetch(`${API_BASE}/api/agent/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

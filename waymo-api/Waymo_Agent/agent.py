@@ -22,7 +22,10 @@ if not api_key:
 
 client = genai.Client(api_key=api_key)
 
-DB_PATH = "../waymo_dataset/results/edge_cases.db"
+default_db_path = os.path.join(os.getcwd(), "data", "edge_cases.db")
+DB_PATH = os.getenv("DB_PATH", default_db_path)
+
+print(f"📂 DATABASE SOURCE: {DB_PATH}")
 
 def _register_custom_functions(conn):
     """Register custom statistical functions for SQLite"""

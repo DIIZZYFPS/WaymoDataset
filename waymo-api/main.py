@@ -5,6 +5,7 @@ import pandas as pd
 import base64
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
+import os
 
 app = fastapi.FastAPI()
 
@@ -16,7 +17,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_PATH = "../waymo_dataset/results/edge_cases.db"
+default_db_path = os.path.join(os.getcwd(), "data", "edge_cases.db")
+DB_PATH = os.getenv("DB_PATH", default_db_path)
+
+print(f"📂 DATABASE SOURCE: {DB_PATH}")
 
 # ================== Batched Dashboard Summary (Phase 2 Optimization) ==================#
 @app.get("/api/dashboard-summary")
