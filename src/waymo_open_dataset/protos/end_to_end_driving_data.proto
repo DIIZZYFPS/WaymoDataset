@@ -1,0 +1,80 @@
+// Self-contained Waymo E2E Driving Data proto for the C++ streaming engine.
+// This is a simplified, standalone version that eliminates the deep dependency
+// chain (dataset.proto -> label.proto -> vector.proto -> map.proto) from the
+// upstream Waymo Open Dataset repository.
+//
+// Only the message types and fields used by waymo_processor.cc are included.
+
+syntax = "proto2";
+
+package waymo.open_dataset;
+
+message CameraName {
+  enum Name {
+    UNKNOWN = 0;
+    FRONT = 1;
+    FRONT_LEFT = 2;
+    FRONT_RIGHT = 3;
+    SIDE_LEFT = 4;
+    SIDE_RIGHT = 5;
+    REAR_LEFT = 6;
+    REAR = 7;
+    REAR_RIGHT = 8;
+  }
+}
+
+message CameraCalibration {
+  optional CameraName.Name name = 1;
+  optional int32 width = 4;
+  optional int32 height = 5;
+}
+
+message Context {
+  optional string name = 1;
+  repeated CameraCalibration camera_calibrations = 2;
+}
+
+message CameraImage {
+  optional CameraName.Name name = 1;
+  optional bytes image = 2;
+}
+
+message Frame {
+  repeated CameraImage images = 1;
+  optional Context context = 3;
+  optional int64 timestamp_micros = 9;
+}
+
+message EgoTrajectoryStates {
+  repeated float pos_x = 1 [packed = true];
+  repeated float pos_y = 2 [packed = true];
+  repeated float pos_z = 3 [packed = true];
+
+  repeated float vel_x = 4 [packed = true];
+  repeated float vel_y = 5 [packed = true];
+
+  repeated float accel_x = 6 [packed = true];
+  repeated float accel_y = 7 [packed = true];
+
+  optional float preference_score = 8;
+}
+
+message EgoIntent {
+  enum Intent {
+    UNKNOWN = 0;
+    GO_STRAIGHT = 1;
+    GO_LEFT = 2;
+    GO_RIGHT = 3;
+  }
+}
+
+message E2EDFrame {
+  optional Frame frame = 1;
+
+  optional EgoTrajectoryStates future_states = 5;
+  optional EgoTrajectoryStates past_states = 6;
+
+  optional EgoIntent.Intent intent = 7;
+
+  repeated EgoTrajectoryStates preference_trajectories = 8;
+}

@@ -22,3 +22,8 @@ waymo_dataset/
 # OS
 .DS_Store
 Thumbs.db
+creds.json
+build_logs.txt
+waymo-api/backend.db
+waymo-api/data/edge_cases.db
+waymo-api/data/edge_cases.db

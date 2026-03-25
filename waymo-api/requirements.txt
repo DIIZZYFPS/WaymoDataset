@@ -3,3 +3,8 @@ uvicorn
 pandas
 numpy
 google-adk
+google-cloud-bigquery
+google-cloud-storage
+redis
+sse-starlette
+python-dotenv

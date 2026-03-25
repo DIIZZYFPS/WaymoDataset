@@ -5,6 +5,7 @@ import { Charts } from "@/components/dashboard/Charts";
 import { AdHocQuery } from "@/components/dashboard/AdHocQuery";
 import { PreFlaggedTable } from "@/components/dashboard/PreFlaggedTable";
 import { ThumbnailModal } from "@/components/dashboard/ThumbnailModal";
+import { LiveEdgeCases } from "@/components/dashboard/LiveEdgeCases";
 import { BotMessageSquare } from "lucide-react";
 import { ChatSidebar } from "@/components/dashboard/ChatSidebar";
 import { useAgentChat } from "@/hooks/useAgentChat";
@@ -71,6 +72,9 @@ const Index = () => {
       <main className="container mx-auto px-6 py-8 space-y-8">
         {/* KPI Stats Row */}
         <KPICards />
+
+        {/* Live Edge Case Feed from C++ Engine → Redis */}
+        <LiveEdgeCases />
 
         {/* Filters Row */}
         <FilterControls
